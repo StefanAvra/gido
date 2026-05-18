@@ -1,26 +1,122 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  --color-bg: #0e0e0b;
+  --color-bg-2: #161610;
+  --color-bg-3: #1e1e18;
+  --color-amber: #c8943a;
+  --color-amber-bright: #e8b050;
+  --color-amber-dim: #6b4e1e;
+  --color-green: #3d6b4a;
+  --color-text: #d4ccba;
+  --color-text-dim: #706a5c;
+  --color-text-faint: #3a3830;
+
+  --font-serif: var(--font-playfair), Georgia, serif;
+  --font-mono: var(--font-courier), "Courier New", monospace;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@keyframes ring-idle {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.02);
   }
 }
 
+@keyframes ring-pulse {
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes ring-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  height: 100%;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  overflow-x: hidden;
+  position: relative;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(200, 148, 58, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(200, 148, 58, 0.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 15% 85%, rgba(200, 148, 58, 0.04) 0%, transparent 55%),
+    radial-gradient(ellipse at 85% 15%, rgba(61, 107, 74, 0.04) 0%, transparent 55%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Orb rings ── */
+.orb-ring,
+.orb-ring-2 {
+  position: absolute;
+  border-radius: 9999px;
+}
+
+.orb-ring {
+  inset: 0;
+  border: 0.5px solid rgba(200, 148, 58, 0.3);
+  animation: ring-idle 4s ease-in-out infinite;
+}
+
+.orb-ring-2 {
+  inset: -12px;
+  border: 0.5px solid rgba(200, 148, 58, 0.12);
+  animation: ring-idle 4s ease-in-out infinite reverse;
+  animation-delay: -2s;
+}
+
+.orb-loading .orb-ring {
+  animation: ring-pulse 1.2s ease-in-out infinite;
+  border-color: var(--color-amber);
+}
+
+.orb-loading .orb-ring-2 {
+  animation: ring-spin 3s linear infinite;
+  border-color: var(--color-amber-dim);
+  border-top-color: var(--color-amber);
+}
+
+.orb-speaking .orb-ring {
+  animation: ring-pulse 0.6s ease-in-out infinite;
+  border-color: var(--color-amber-bright);
 }
