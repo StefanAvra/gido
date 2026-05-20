@@ -1,8 +1,15 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { fetchLandmarks, type Landmark } from "@/lib/overpass";
-import { DEFAULT_MODEL_ID, DEFAULT_VOICE_ID, TTS_MODELS, VOICES } from "@/lib/voices";
+import { fetchAreaContext, fetchLandmarks, type Landmark } from "@/lib/overpass";
+import {
+  DEFAULT_LANGUAGE,
+  DEFAULT_MODEL_ID,
+  DEFAULT_VOICE_ID,
+  LANGUAGES,
+  TTS_MODELS,
+  VOICES,
+} from "@/lib/voices";
 
 const BAR_COUNT = 20;
 const BARS = Array.from({ length: BAR_COUNT }, (_, i) => i);
@@ -50,6 +57,7 @@ export default function Home() {
   const [configOpen, setConfigOpen] = useState(true);
   const [voiceId, setVoiceId] = useState(DEFAULT_VOICE_ID);
   const [modelId, setModelId] = useState(DEFAULT_MODEL_ID);
+  const [language, setLanguage] = useState(DEFAULT_LANGUAGE);
   const [radius, setRadius] = useState(500);
   const [error, setError] = useState<string | null>(null);
   const [script, setScript] = useState<string | null>(null);
@@ -188,14 +196,10 @@ export default function Home() {
       const { lat, lon } = await getLocation();
 
       setStateKey("fetching");
-      const found = await fetchLandmarks(lat, lon, radius);
-      if (found.length === 0) {
-        setStateKey("idle");
-        setError(
-          `No named landmarks found within ${radius}m. Try increasing the radius or exploring a different area.`,
-        );
-        return;
-      }
+      const [found, area] = await Promise.all([
+        fetchLandmarks(lat, lon, radius),
+        fetchAreaContext(lat, lon, radius),
+      ]);
       setLandmarks(found);
 
       setStateKey("generating");
@@ -204,6 +208,11 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           landmarks: found.map((l) => ({ name: l.name, type: l.type })),
+          language,
+          country: area.country,
+          city: area.city,
+          district: area.district,
+          buildings: area.buildings,
         }),
       });
       const guideData = (await guideRes.json().catch(() => ({}))) as {
@@ -279,6 +288,28 @@ export default function Home() {
                 {VOICES.map((v) => (
                   <option key={v.id} value={v.id} className="bg-bg-2">
                     {v.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label
+                htmlFor="language"
+                className="text-[11px] uppercase tracking-[0.15em] text-text-dim"
+              >
+                Language
+              </label>
+              <select
+                id="language"
+                value={language}
+                onChange={(e) => {
+                  setLanguage(e.target.value);
+                }}
+                className="rounded border border-amber/30 bg-bg px-3 py-2 text-[13px] outline-none focus:border-amber"
+              >
+                {LANGUAGES.map((l) => (
+                  <option key={l.code} value={l.code} className="bg-bg-2">
+                    {l.label}
                   </option>
                 ))}
               </select>

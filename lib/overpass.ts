@@ -6,12 +6,36 @@ export interface Landmark {
   lon: number | undefined;
 }
 
+export interface AreaContext {
+  country: string | null;
+  city: string | null;
+  district: string | null;
+  buildings: Record<string, number>;
+}
+
 interface OverpassElement {
   lat?: number;
   lon?: number;
   center?: { lat: number; lon: number };
   tags?: Record<string, string>;
 }
+
+interface NominatimResponse {
+  address?: {
+    country?: string;
+    city?: string;
+    town?: string;
+    village?: string;
+    municipality?: string;
+    suburb?: string;
+    neighbourhood?: string;
+    quarter?: string;
+    city_district?: string;
+    hamlet?: string;
+  };
+}
+
+const USER_AGENT = "Gido/0.1 voice-city-guide";
 
 export async function fetchLandmarks(
   lat: number,
@@ -66,4 +90,78 @@ out body center qt 30;
       lon: e.lon ?? e.center?.lon,
     }))
     .slice(0, 12);
+}
+
+export async function reverseGeocode(
+  lat: number,
+  lon: number,
+): Promise<Pick<AreaContext, "country" | "city" | "district">> {
+  const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${String(lat)}&lon=${String(lon)}&zoom=14&addressdetails=1`;
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": USER_AGENT, "Accept-Language": "en" },
+    });
+    if (!res.ok) return { country: null, city: null, district: null };
+    const data = (await res.json()) as NominatimResponse;
+    const a = data.address ?? {};
+    return {
+      country: a.country ?? null,
+      city: a.city ?? a.town ?? a.village ?? a.municipality ?? a.hamlet ?? null,
+      district: a.suburb ?? a.neighbourhood ?? a.quarter ?? a.city_district ?? null,
+    };
+  } catch {
+    return { country: null, city: null, district: null };
+  }
+}
+
+export async function fetchBuildingMix(
+  lat: number,
+  lon: number,
+  radius: number,
+): Promise<Record<string, number>> {
+  const query = `
+[out:json][timeout:20];
+(
+  way["building"](around:${String(radius)},${String(lat)},${String(lon)});
+  way["amenity"](around:${String(radius)},${String(lat)},${String(lon)});
+  way["shop"](around:${String(radius)},${String(lat)},${String(lon)});
+);
+out tags 300;
+  `.trim();
+
+  try {
+    const res = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      body: query,
+    });
+    if (!res.ok) return {};
+    const data = (await res.json()) as { elements: OverpassElement[] };
+    const counts: Record<string, number> = {};
+    for (const el of data.elements) {
+      const t = el.tags;
+      if (!t) continue;
+      const label =
+        (t.building && t.building !== "yes" ? t.building : null) ??
+        t.amenity ??
+        t.shop ??
+        (t.building === "yes" ? "building" : null);
+      if (!label) continue;
+      counts[label] = (counts[label] ?? 0) + 1;
+    }
+    return counts;
+  } catch {
+    return {};
+  }
+}
+
+export async function fetchAreaContext(
+  lat: number,
+  lon: number,
+  radius: number,
+): Promise<AreaContext> {
+  const [geo, buildings] = await Promise.all([
+    reverseGeocode(lat, lon),
+    fetchBuildingMix(lat, lon, radius),
+  ]);
+  return { ...geo, buildings };
 }

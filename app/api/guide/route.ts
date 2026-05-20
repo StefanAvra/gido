@@ -1,3 +1,5 @@
+import { getLanguageLabel } from "@/lib/voices";
+
 interface GuideLandmark {
   name: string;
   type: string;
@@ -5,6 +7,11 @@ interface GuideLandmark {
 
 interface GuideRequest {
   landmarks?: GuideLandmark[];
+  language?: string;
+  country?: string | null;
+  city?: string | null;
+  district?: string | null;
+  buildings?: Record<string, number>;
 }
 
 interface OpenRouterResponse {
@@ -15,13 +22,42 @@ interface OpenRouterResponse {
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = "google/gemini-2.5-flash";
 
-function buildPrompt(landmarks: GuideLandmark[]): string {
-  const list = landmarks.map((l) => `• ${l.name} (${l.type})`).join("\n");
-  return `You are Gido a charming, knowledgeable city guide narrating a walk. Here are the landmarks within walking distance of the user's current location:
+function formatPlace(req: GuideRequest): string {
+  const parts = [req.district, req.city, req.country].filter(
+    (p): p is string => typeof p === "string" && p.length > 0,
+  );
+  return parts.length > 0 ? parts.join(", ") : "an unknown area";
+}
 
-${list}
+function formatBuildings(buildings: Record<string, number> | undefined): string {
+  if (!buildings) return "(none)";
+  const entries = Object.entries(buildings)
+    .filter(([k]) => k !== "building")
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 12);
+  if (entries.length === 0) return "(none)";
+  return entries.map(([k, n]) => `${k} ×${String(n)}`).join(", ");
+}
 
-Write a short spoken introduction (around 120–160 words) that a friendly guide would say out loud. Highlight 2–4 of the most interesting landmarks. Be warm, informative, and conversational — as if speaking to someone who just arrived and wants to explore. No markdown, no lists, no special characters. Just natural spoken prose.`;
+function buildPrompt(req: GuideRequest): string {
+  const language = getLanguageLabel(req.language ?? "en");
+  const place = formatPlace(req);
+  const landmarks = req.landmarks ?? [];
+  const landmarkList =
+    landmarks.length > 0
+      ? landmarks.map((l) => `• ${l.name} (${l.type})`).join("\n")
+      : "(no notable named landmarks nearby)";
+  const buildingLine = formatBuildings(req.buildings);
+
+  return `You are Gido, a charming, knowledgeable city guide narrating a walk for someone standing in ${place}.
+
+Context (use what is interesting, ignore what is not):
+- Location: ${place}
+- Nearby landmarks:
+${landmarkList}
+- Surrounding building & amenity mix: ${buildingLine}
+
+Write a short spoken introduction (around 120–160 words) in ${language}, as a friendly guide would say out loud. If there are notable landmarks, highlight 2–4 of the most interesting. If there are few or no landmarks, paint a sense of place from the surrounding building and amenity mix — a residential district, a market street, an industrial zone, a leafy quarter near schools, etc. — and infer something evocative or worth noticing. Be warm, informative, and conversational, as if speaking to someone who just arrived and wants to explore. No markdown, no lists, no special characters. Just natural spoken prose in ${language}.`;
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -37,9 +73,11 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const landmarks = body.landmarks ?? [];
-  if (landmarks.length === 0) {
-    return Response.json({ error: "No landmarks provided." }, { status: 400 });
+  const hasLandmarks = (body.landmarks ?? []).length > 0;
+  const hasBuildings = Object.keys(body.buildings ?? {}).length > 0;
+  const hasPlace = Boolean(body.country ?? body.city ?? body.district);
+  if (!hasLandmarks && !hasBuildings && !hasPlace) {
+    return Response.json({ error: "No area context provided." }, { status: 400 });
   }
 
   let res: Response;
@@ -52,7 +90,7 @@ export async function POST(request: Request): Promise<Response> {
       },
       body: JSON.stringify({
         model: process.env.OPENROUTER_MODEL ?? DEFAULT_MODEL,
-        messages: [{ role: "user", content: buildPrompt(landmarks) }],
+        messages: [{ role: "user", content: buildPrompt(body) }],
       }),
     });
   } catch {
@@ -62,7 +100,7 @@ export async function POST(request: Request): Promise<Response> {
   const data = (await res.json().catch(() => ({}))) as OpenRouterResponse;
   if (!res.ok) {
     return Response.json(
-      { error: data.error?.message ?? `OpenRouter error (${res.status}).` },
+      { error: data.error?.message ?? `OpenRouter error (${String(res.status)}).` },
       { status: 502 },
     );
   }
