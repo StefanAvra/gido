@@ -36,6 +36,7 @@ in-app settings.
 ### Prerequisites
 
 - Node.js 20+
+- [pnpm](https://pnpm.io/installation) 10+
 - An [OpenRouter API key](https://openrouter.ai/keys)
 - An [ElevenLabs API key](https://elevenlabs.io/app/settings/api-keys)
 
@@ -43,14 +44,14 @@ in-app settings.
 
 ```bash
 # install dependencies
-npm install
+pnpm install
 
 # configure environment
 cp .env.example .env
 # then fill in ELEVENLABS_API_KEY and OPENROUTER_API_KEY
 
 # run the dev server
-npm run dev
+pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) and tap the orb. Geolocation
