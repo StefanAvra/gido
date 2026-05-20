@@ -19,6 +19,7 @@ export const TTS_MODELS: VoiceOption[] = [
   { id: "eleven_flash_v2_5", label: "Eleven Flash v2.5" },
   { id: "eleven_flash_v2", label: "Eleven Flash v2" },
   { id: "eleven_multilingual_v2", label: "Multilingual v2" },
+  { id: "eleven_v3", label: "Eleven v3" },
 ];
 
 export interface LanguageOption {
